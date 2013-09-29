@@ -1,0 +1,212 @@
+#!/opt/local/bin/python2.7
+# -*- mode: python; -*-
+import subprocess
+import sqlite3
+import time
+import sys
+import hashlib
+import jinja2
+
+
+def render_imsg_db(db_filename):
+    """Render an html file from an iMessage database `db_filename`."""
+    template = {'chat.db.tmpl.html':'''
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>QZY&#x2019;s iMessage Dump</title>
+    <meta charset="utf-8">
+    <style type="text/css" media="screen">
+      * {
+      margin: 0;
+      padding: 0;
+      }
+
+      body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      }
+
+      header#topbar {
+      background: #f1f1f1;
+      height: 29px;
+      padding: 23px 45px 18px;
+      border-bottom: solid 1px #e5e5e5;
+      }
+
+      header#topbar p {
+      font-weight: 200;
+      font-size: 29px;
+      color: #63666A;
+      vertical-align: middle;
+      }
+
+      a {
+      text-decoration: none;
+      color: inherit;
+      }
+
+      header#topbar aside {
+      float: right;
+      text-align: right;
+      margin: 6px 20px;
+      color: #bbb;
+      }
+
+      h1 {
+      padding: 15px 45px;
+      color: #dd4b39;
+      font-weight: 500;
+      font-size: 20px;
+      }
+
+      h2 {
+      font-weight: 400;
+      font-size: 16px;
+      line-height: 24px;
+      margin-bottom: 10px;
+      color: #222;
+      }
+
+      p {
+      font-size: 13px;
+      line-height: 18px;
+      margin-bottom: 13px;
+      color: #222;
+      }
+
+      #chatlog {
+      list-style: none;
+      }
+
+      #chatlog input[type=radio] {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      }
+
+      #chatlog li {
+      width: 250px;
+      padding-right: 60px;
+      }
+
+      #chatlog li label {
+      display: block;
+      font-size: 13px;
+      vertical-align: middle;
+      padding: 8px 1px 8px 45px;
+      overflow: hidden;
+      position: relative;
+      z-index: 100;
+      -webkit-transition: all 0.2s ease-in-out;
+      -moz-transition: all 0.2s ease-in-out;
+      -o-transition: all 0.2s ease-in-out;
+      transition: all 0.2s ease-in-out;
+      }
+
+      #chatlog li label:hover,
+      #chatlog input[type=radio]:focus + label {
+      background-color: #eee;
+      }
+
+      #chatlog input[type=radio]:checked + label {
+      color: #dd4b39;
+      border-left: solid 4px #dd4b39;
+      padding-left: 41px;
+      }
+
+      #chatlog .tab-content {
+      display: none;
+      padding: 0 30px 0 310px;
+      max-width: 800px;
+      position: absolute;
+      top: 126px;
+      }
+
+      #chatlog input[type=radio]:checked ~ div.tab-content {
+      display: block;
+      }
+
+      #chatlog div.tab-content dd {
+      font-size: 13px;
+      line-height: 18px;
+      margin-bottom: 13px;
+      color: #222;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      }
+
+      #chatlog div.tab-content dt {
+      color: #056ea4;
+      font-size: 11px;
+      }
+
+      #chatlog div.tab-content dt span + span {
+      margin-left: 2em;
+      }
+    </style>
+  </head>
+  <body>
+    <header id="topbar">
+      <aside>Written by Qian Zhouyu</aside>
+      <p><a href="#">iMessage Dump</a></p>
+    </header>
+    <h1>{{ pagename }}</h1>
+    <ul id="chatlog">
+      {% for recipient in recipients %}
+      <li>
+        <input type="radio" name="recipients" id="tab{{ recipient[1] }}">
+        <label for="tab{{ recipient[1] }}">{{ recipient[0] }}</label>
+        <div id="tab-content{{ recipient[1] }}" class="tab-content">
+          <dl>
+            {% for row in result[recipient[0]] %}
+            <dt><span>{{ row[1] }}</span><span>{{ row[0] }}</span></dt><dd>{{ row[2]|e }}</dd>
+            {% endfor %}
+          </dl>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>
+    '''}
+    c = sqlite3.connect(db_filename)
+    result = {}
+    recipients = []
+    for row in c.execute('''
+        SELECT chat.ROWID,message.is_from_me,message.date,handle.id,message.text
+        FROM message LEFT JOIN handle ON message.handle_id=handle.ROWID
+        LEFT JOIN chat ON message.cache_roomnames=chat.chat_identifier
+        ORDER BY message.ROWID DESC;'''):
+        message = row[4]
+        recipient = "Group Chat %d" % row[0] if row[0] else row[3]
+        sender = u'Me' if row[1] else row[3]
+        date = time.strftime("%d/%m/%y %H:%M:%S",
+                             time.gmtime(row[2] + 978278400 + 28800 * 2))
+        try:
+            result[recipient].append((sender, date, message))
+        except KeyError:
+            result[recipient] = []
+            recipients.append((recipient,
+                               "sha1" + hashlib.sha1(recipient).hexdigest()))
+            result[recipient].append((sender, date, message))
+    for recipient in result.keys():
+        result[recipient].reverse()
+
+    template_values = { 'result': result,
+                        'recipients': recipients,
+                        'pagename': 'iMessage Dump of ' + db_filename }
+
+    f = open(db_filename + ".html", 'w')
+    f.write(jinja2.Environment(loader=jinja2.DictLoader(template),
+                               extensions=['jinja2.ext.autoescape'])
+            .get_template('chat.db.tmpl.html')
+            .render(template_values)
+            .encode('utf-8'))
+    f.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit('usage: %s db1 [db2 ...]' % sys.argv[0])
+    for db in sys.argv[1:]:
+        render_imsg_db(db)
