@@ -182,19 +182,15 @@ def render_imsg_db(db_filename):
     c = sqlite3.connect(db_filename)
     result = {}
     recipients = []
-    for row in c.execute('''
-        SELECT chat.ROWID,
-               message.is_from_me,
+    for recipient, sender, date, message in c.execute('''
+        SELECT CASE WHEN chat.ROWID THEN printf('Group Chat %d', chat.ROWID) ELSE handle.id END AS recipient,
+               CASE WHEN message.is_from_me THEN 'Me' ELSE handle.id END AS sender,
                strftime('%d/%m/%Y %H:%M:%S', datetime(message.date + 978307200, 'unixepoch', 'localtime')),
-               handle.id,
-               message.text FROM message
+               message.text
+        FROM message
         LEFT JOIN handle ON message.handle_id=handle.ROWID
         LEFT JOIN chat ON message.cache_roomnames=chat.chat_identifier
         ORDER BY message.ROWID DESC;'''):
-        message = row[4]
-        recipient = "Group Chat %d" % row[0] if row[0] else row[3]
-        sender = u'Me' if row[1] else row[3]
-        date = row[2]
         try:
             result[recipient].append((sender, date, message))
         except KeyError:
