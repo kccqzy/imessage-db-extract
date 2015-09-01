@@ -183,15 +183,18 @@ def render_imsg_db(db_filename):
     result = {}
     recipients = []
     for row in c.execute('''
-        SELECT chat.ROWID,message.is_from_me,message.date,handle.id,message.text
-        FROM message LEFT JOIN handle ON message.handle_id=handle.ROWID
+        SELECT chat.ROWID,
+               message.is_from_me,
+               strftime('%d/%m/%Y %H:%M:%S', datetime(message.date + 978307200, 'unixepoch', 'localtime')),
+               handle.id,
+               message.text FROM message
+        LEFT JOIN handle ON message.handle_id=handle.ROWID
         LEFT JOIN chat ON message.cache_roomnames=chat.chat_identifier
         ORDER BY message.ROWID DESC;'''):
         message = row[4]
         recipient = "Group Chat %d" % row[0] if row[0] else row[3]
         sender = u'Me' if row[1] else row[3]
-        date = time.strftime("%d/%m/%y %H:%M:%S",
-                             time.gmtime(row[2] + 978278400 + 28800 * 2))
+        date = row[2]
         try:
             result[recipient].append((sender, date, message))
         except KeyError:
