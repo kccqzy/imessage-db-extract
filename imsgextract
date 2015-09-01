@@ -1,6 +1,15 @@
-#!/opt/local/bin/python2.7
+#!/usr/bin/env python
 # -*- mode: python; -*-
-import subprocess
+"""Simple script to extract Messages database from SQLite db to HTML
+
+This simple script reads a Messages database, either from OS X or from
+iOS (using a suitable file transfer utility, or iTunes backup),
+executes a predefined SQL query to obtain interesting content, and
+writes its contents in an HTML file that can be inspected using a
+browser.
+
+"""
+
 import sqlite3
 import time
 import sys
