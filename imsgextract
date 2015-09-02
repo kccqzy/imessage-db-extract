@@ -181,22 +181,33 @@ def render_imsg_db(db_filename):
 
     conn = sqlite3.connect(db_filename)
     sql_results = conn.execute('''
-        WITH results AS (
+        WITH groupchat_membership AS (
+            SELECT cache_roomnames,
+            group_concat(id, ', ') AS members
+            FROM (
+                SELECT DISTINCT message.cache_roomnames, handle.id
+                FROM message
+                JOIN handle ON message.handle_id=handle.ROWID
+                WHERE message.cache_roomnames IS NOT NULL AND message.is_from_me=0
+            )
+            GROUP BY cache_roomnames
+        ),
+        unsorted_messages AS (
             SELECT message.ROWID AS rowid,
-            CASE WHEN chat.ROWID THEN printf('Group Chat %d', chat.ROWID) ELSE handle.id END AS recipient,
+            CASE WHEN message.cache_roomnames IS NOT NULL THEN groupchat_membership.members ELSE handle.id END AS recipient,
             CASE WHEN message.is_from_me THEN 'Me' ELSE handle.id END AS sender,
             message.date,
             strftime('%d/%m/%Y %H:%M:%S', datetime(message.date + 978307200, 'unixepoch', 'localtime')) AS human_date,
             message.text
             FROM message
             LEFT JOIN handle ON message.handle_id=handle.ROWID
-            LEFT JOIN chat ON message.cache_roomnames=chat.chat_identifier
+            NATURAL LEFT JOIN groupchat_membership
         )
-        SELECT results.recipient, sender, human_date, text
-        FROM results
+        SELECT unsorted_messages.recipient, sender, human_date, text
+        FROM unsorted_messages
         NATURAL LEFT JOIN (
-            SELECT recipient, max(date) AS latest_date FROM results GROUP BY recipient
-        ) AS latest_exchange
+            SELECT recipient, max(date) AS latest_date FROM unsorted_messages GROUP BY recipient
+        )
         ORDER BY latest_date DESC, rowid ASC;
         ''')
     result = {}
