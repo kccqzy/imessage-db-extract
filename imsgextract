@@ -221,7 +221,7 @@ def render_imsg_db(db_filename):
                         'pagename': 'iMessage Dump of ' + db_filename }
 
     with open(db_filename + ".html", 'wb') as f:
-        f.write(jinja2.Environment(extensions=['jinja2.ext.autoescape'])
+        f.write(jinja2.Environment(extensions=['jinja2.ext.autoescape'], trim_blocks=True, lstrip_blocks=True)
             .from_string(template)
             .render(template_values)
             .encode('utf-8'))
