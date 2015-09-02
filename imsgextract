@@ -211,13 +211,12 @@ def render_imsg_db(db_filename):
                         'recipients': recipients,
                         'pagename': 'iMessage Dump of ' + db_filename }
 
-    f = open(db_filename + ".html", 'w')
-    f.write(jinja2.Environment(loader=jinja2.DictLoader(template),
-                               extensions=['jinja2.ext.autoescape'])
+    with open(db_filename + ".html", 'wb') as f:
+        f.write(jinja2.Environment(loader=jinja2.DictLoader(template),
+                                   extensions=['jinja2.ext.autoescape'])
             .get_template('chat.db.tmpl.html')
             .render(template_values)
             .encode('utf-8'))
-    f.close()
     conn.close()
 
 if __name__ == "__main__":
