@@ -13,7 +13,6 @@ browser.
 import sqlite3
 import itertools
 import sys
-import hashlib
 import jinja2
 
 
@@ -164,11 +163,11 @@ def render_imsg_db(db_filename):
     <ul id="chatlog">
       {% for recipient in recipients %}
       <li>
-        <input type="radio" name="recipients" id="tab{{ recipient[1] }}">
-        <label for="tab{{ recipient[1] }}">{{ recipient[0] }}</label>
-        <div id="tab-content{{ recipient[1] }}" class="tab-content">
+        <input type="radio" name="recipients" id="tab{{ loop.index }}">
+        <label for="tab{{ loop.index }}">{{ recipient }}</label>
+        <div id="tab-content{{ loop.index }}" class="tab-content">
           <dl>
-            {% for row in result[recipient[0]] %}
+            {% for row in result[recipient] %}
             <dt><span>{{ row[1] }}</span><span>{{ row[0] }}</span></dt><dd>{{ row[2]|e }}</dd>
             {% endfor %}
           </dl>
@@ -203,8 +202,7 @@ def render_imsg_db(db_filename):
     result = {}
     recipients = []
     for recipient, g in itertools.groupby(sql_results, lambda row: row[0]):
-            recipients.append((recipient,
-                               "sha1" + hashlib.sha1(recipient).hexdigest()))
+            recipients.append(recipient)
             result[recipient] = map(lambda row: (row[1:]), g)
 
     template_values = { 'result': result,
