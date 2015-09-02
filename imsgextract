@@ -198,7 +198,7 @@ def render_imsg_db(db_filename):
             CASE WHEN message.is_from_me THEN 'Me' ELSE handle.id END AS sender,
             message.date,
             strftime('%d/%m/%Y %H:%M:%S', datetime(message.date + 978307200, 'unixepoch', 'localtime')) AS human_date,
-            message.text
+            CASE WHEN message.cache_has_attachments THEN '<Attachment>' || message.text ELSE message.text END AS text
             FROM message
             LEFT JOIN handle ON message.handle_id=handle.ROWID
             NATURAL LEFT JOIN groupchat_membership
