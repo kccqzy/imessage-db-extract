@@ -18,7 +18,7 @@ import jinja2
 
 def render_imsg_db(db_filename):
     """Render an html file from an iMessage database `db_filename`."""
-    template = {'chat.db.tmpl.html':'''
+    template = '''
 <!DOCTYPE html>
 <html>
   <head>
@@ -177,7 +177,7 @@ def render_imsg_db(db_filename):
     </ul>
   </body>
 </html>
-    '''}
+    '''
 
     conn = sqlite3.connect(db_filename)
     sql_results = conn.execute('''
@@ -210,9 +210,8 @@ def render_imsg_db(db_filename):
                         'pagename': 'iMessage Dump of ' + db_filename }
 
     with open(db_filename + ".html", 'wb') as f:
-        f.write(jinja2.Environment(loader=jinja2.DictLoader(template),
-                                   extensions=['jinja2.ext.autoescape'])
-            .get_template('chat.db.tmpl.html')
+        f.write(jinja2.Environment(extensions=['jinja2.ext.autoescape'])
+            .from_string(template)
             .render(template_values)
             .encode('utf-8'))
     conn.close()
