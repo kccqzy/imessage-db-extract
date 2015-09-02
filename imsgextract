@@ -208,7 +208,7 @@ def render_imsg_db(db_filename):
         NATURAL LEFT JOIN (
             SELECT recipient, max(date) AS latest_date FROM unsorted_messages GROUP BY recipient
         )
-        ORDER BY latest_date DESC, rowid ASC;
+        ORDER BY latest_date DESC, date ASC;
         ''')
     result = {}
     recipients = []
