@@ -11,7 +11,7 @@ browser.
 """
 
 import sqlite3
-import time
+import itertools
 import sys
 import hashlib
 import jinja2
@@ -179,27 +179,33 @@ def render_imsg_db(db_filename):
   </body>
 </html>
     '''}
-    c = sqlite3.connect(db_filename)
+
+    conn = sqlite3.connect(db_filename)
+    sql_results = conn.execute('''
+        WITH results AS (
+            SELECT message.ROWID AS rowid,
+            CASE WHEN chat.ROWID THEN printf('Group Chat %d', chat.ROWID) ELSE handle.id END AS recipient,
+            CASE WHEN message.is_from_me THEN 'Me' ELSE handle.id END AS sender,
+            message.date,
+            strftime('%d/%m/%Y %H:%M:%S', datetime(message.date + 978307200, 'unixepoch', 'localtime')) AS human_date,
+            message.text
+            FROM message
+            LEFT JOIN handle ON message.handle_id=handle.ROWID
+            LEFT JOIN chat ON message.cache_roomnames=chat.chat_identifier
+        )
+        SELECT results.recipient, sender, human_date, text
+        FROM results
+        NATURAL LEFT JOIN (
+            SELECT recipient, max(date) AS latest_date FROM results GROUP BY recipient
+        ) AS latest_exchange
+        ORDER BY latest_date DESC, rowid ASC;
+        ''')
     result = {}
     recipients = []
-    for recipient, sender, date, message in c.execute('''
-        SELECT CASE WHEN chat.ROWID THEN printf('Group Chat %d', chat.ROWID) ELSE handle.id END AS recipient,
-               CASE WHEN message.is_from_me THEN 'Me' ELSE handle.id END AS sender,
-               strftime('%d/%m/%Y %H:%M:%S', datetime(message.date + 978307200, 'unixepoch', 'localtime')),
-               message.text
-        FROM message
-        LEFT JOIN handle ON message.handle_id=handle.ROWID
-        LEFT JOIN chat ON message.cache_roomnames=chat.chat_identifier
-        ORDER BY message.ROWID DESC;'''):
-        try:
-            result[recipient].append((sender, date, message))
-        except KeyError:
-            result[recipient] = []
+    for recipient, g in itertools.groupby(sql_results, lambda row: row[0]):
             recipients.append((recipient,
                                "sha1" + hashlib.sha1(recipient).hexdigest()))
-            result[recipient].append((sender, date, message))
-    for recipient in result.keys():
-        result[recipient].reverse()
+            result[recipient] = map(lambda row: (row[1:]), g)
 
     template_values = { 'result': result,
                         'recipients': recipients,
@@ -212,6 +218,7 @@ def render_imsg_db(db_filename):
             .render(template_values)
             .encode('utf-8'))
     f.close()
+    conn.close()
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
